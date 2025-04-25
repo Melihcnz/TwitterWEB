@@ -102,7 +102,7 @@ export const api = {
       return response.json()
     },
     getBookmarks: async () => {
-      const response = await fetchWithAuth('/tweets/bookmarks')
+      const response = await fetchWithAuth('/tweets/bookmarks/all')
       return response.json()
     },
     bookmark: async (tweetId) => {

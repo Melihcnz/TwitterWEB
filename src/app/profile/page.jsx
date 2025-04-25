@@ -123,11 +123,31 @@ export default function ProfilePage() {
 
   const handleBookmark = async (tweetId) => {
     try {
-      await api.tweets.bookmark(tweetId)
-      fetchProfile() // Tweet listesini güncelle
+      const response = await api.tweets.bookmark(tweetId)
+      if (response.isBookmarked !== undefined) {
+        // Tweet listesini güncelle
+        const updatedTweets = tweets.map(tweet => {
+          if (tweet._id === tweetId) {
+            const bookmarks = tweet.bookmarks || []
+            if (response.isBookmarked) {
+              bookmarks.push({ _id: user._id })
+            } else {
+              const index = bookmarks.findIndex(b => b._id === user._id)
+              if (index !== -1) bookmarks.splice(index, 1)
+            }
+            return { ...tweet, bookmarks }
+          }
+          return tweet
+        })
+        setTweets(updatedTweets)
+      }
     } catch (error) {
       console.error('Tweet kaydedilirken hata:', error)
     }
+  }
+
+  const isBookmarked = (tweet) => {
+    return tweet.bookmarks?.some(bookmark => bookmark._id === user?._id)
   }
 
   const handleRemoveBookmark = async (tweetId) => {
@@ -353,10 +373,10 @@ export default function ProfilePage() {
                           <span>{tweet.retweets?.length || 0}</span>
                         </button>
                         <button 
-                          onClick={() => tweet.bookmarks?.includes(user?._id) ? handleRemoveBookmark(tweet._id) : handleBookmark(tweet._id)}
+                          onClick={() => isBookmarked(tweet) ? handleRemoveBookmark(tweet._id) : handleBookmark(tweet._id)}
                           className="flex items-center space-x-2 hover:text-blue-500 transition-colors"
                         >
-                          {tweet.bookmarks?.includes(user?._id) ? (
+                          {isBookmarked(tweet) ? (
                             <BsBookmarkFill className="w-5 h-5" />
                           ) : (
                             <BsBookmark className="w-5 h-5" />

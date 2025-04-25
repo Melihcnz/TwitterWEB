@@ -73,8 +73,24 @@ export default function Home() {
 
   const handleBookmark = async (tweetId) => {
     try {
-      await api.tweets.bookmark(tweetId)
-      fetchUserAndTweets() // Tweet listesini güncelle
+      const response = await api.tweets.bookmark(tweetId)
+      if (response.isBookmarked !== undefined) {
+        // Tweet listesini güncelle
+        const updatedTweets = tweets.map(tweet => {
+          if (tweet._id === tweetId) {
+            const bookmarks = tweet.bookmarks || []
+            if (response.isBookmarked) {
+              bookmarks.push({ _id: user._id })
+            } else {
+              const index = bookmarks.findIndex(b => b._id === user._id)
+              if (index !== -1) bookmarks.splice(index, 1)
+            }
+            return { ...tweet, bookmarks }
+          }
+          return tweet
+        })
+        setTweets(updatedTweets)
+      }
     } catch (error) {
       console.error('Tweet kaydedilirken hata:', error)
     }
@@ -90,7 +106,7 @@ export default function Home() {
   }
 
   const isBookmarked = (tweet) => {
-    return tweet.bookmarks?.some(bookmark => bookmark === user?._id)
+    return tweet.bookmarks?.some(bookmark => bookmark._id === user?._id)
   }
 
   return (
