@@ -1,103 +1,193 @@
-import Image from "next/image";
+'use client'
+import { useState, useEffect } from 'react'
+import { api } from '@/utils/api'
+import Sidebar from '@/components/layout/Sidebar'
+import Header from '@/components/Header'
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [tweets, setTweets] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [tweetContent, setTweetContent] = useState('')
+  const [sending, setSending] = useState(false)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    fetchTweets()
+  }, [])
+
+  const fetchTweets = async () => {
+    try {
+      const response = await api.tweets.getAll()
+      setTweets(response.tweets || [])
+    } catch (error) {
+      console.error('Tweetler yüklenirken hata:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleTweetSubmit = async (e) => {
+    e.preventDefault()
+    if (!tweetContent.trim()) return
+
+    setSending(true)
+    try {
+      await api.tweets.create({ content: tweetContent })
+      setTweetContent('')
+      fetchTweets() // Yeni tweet sonrası listeyi güncelle
+    } catch (error) {
+      console.error('Tweet gönderilirken hata:', error)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleLike = async (tweetId) => {
+    try {
+      await api.tweets.like(tweetId)
+      fetchTweets() // Tweet listesini güncelle
+    } catch (error) {
+      console.error('Tweet beğenilirken hata:', error)
+    }
+  }
+
+  const handleRetweet = async (tweetId) => {
+    try {
+      await api.tweets.retweet(tweetId)
+      fetchTweets() // Tweet listesini güncelle
+    } catch (error) {
+      console.error('Tweet retweetlenirken hata:', error)
+    }
+  }
+
+  return (
+    <div className="container mx-auto flex">
+      {/* Sol Sidebar */}
+      <div className="w-1/4 fixed h-screen">
+        <Sidebar />
+      </div>
+
+      {/* Ana İçerik */}
+      <main className="w-1/2 ml-[25%] min-h-screen border-x border-gray-800">
+        <Header />
+        <div className="flex-1 border-l border-r border-gray-800">
+          <div className="p-4 border-b border-gray-800">
+            <form onSubmit={handleTweetSubmit}>
+              <textarea
+                value={tweetContent}
+                onChange={(e) => setTweetContent(e.target.value)}
+                placeholder="Neler oluyor?"
+                className="w-full bg-transparent text-white resize-none focus:outline-none"
+                rows="3"
+              />
+              <div className="flex justify-end mt-2">
+                <button
+                  type="submit"
+                  disabled={sending || !tweetContent.trim()}
+                  className={`px-4 py-2 rounded-full ${
+                    sending || !tweetContent.trim()
+                      ? 'bg-blue-500/50 cursor-not-allowed'
+                      : 'bg-blue-500 hover:bg-blue-600'
+                  } text-white font-semibold transition-colors`}
+                >
+                  {sending ? 'Gönderiliyor...' : 'Tweetle'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          ) : tweets.length === 0 ? (
+            <div className="flex justify-center items-center h-64 text-gray-500">
+              Henüz tweet yok.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-800">
+              {tweets.map((tweet) => (
+                <div key={tweet._id} className="p-4 hover:bg-gray-900/50 transition-colors">
+                  {tweet.isRetweet ? (
+                    <div>
+                      <div className="flex items-center text-gray-500 text-sm mb-2">
+                        <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M23.77 15.67c-.292-.293-.767-.293-1.06 0l-2.22 2.22V7.65c0-2.068-1.683-3.75-3.75-3.75h-5.85c-.414 0-.75.336-.75.75s.336.75.75.75h5.85c1.24 0 2.25 1.01 2.25 2.25v10.24l-2.22-2.22c-.293-.293-.768-.293-1.06 0s-.294.768 0 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5c.294-.292.294-.767 0-1.06zm-10.66 3.28H7.26c-1.24 0-2.25-1.01-2.25-2.25V6.46l2.22 2.22c.148.147.34.22.532.22s.384-.073.53-.22c.293-.293.293-.768 0-1.06l-3.5-3.5c-.293-.294-.768-.294-1.06 0l-3.5 3.5c-.294.292-.294.767 0 1.06s.767.293 1.06 0l2.22-2.22V16.7c0 2.068 1.683 3.75 3.75 3.75h5.85c.414 0 .75-.336.75-.75s-.337-.75-.75-.75z"></path>
+                        </svg>
+                        <span className="hover:underline cursor-pointer">
+                          {tweet.user.name} Retweetledi
+                        </span>
+                      </div>
+                      <div className="border-l-4 border-gray-800 pl-4">
+                        <div className="flex items-center mb-2">
+                          <img
+                            src={tweet.retweetData.user.profilePicture || '/default-avatar.png'}
+                            alt={tweet.retweetData.user.name}
+                            className="w-10 h-10 rounded-full mr-3"
+                          />
+                          <div>
+                            <p className="font-bold text-white">{tweet.retweetData.user.name}</p>
+                            <p className="text-gray-500">@{tweet.retweetData.user.username}</p>
+                          </div>
+                        </div>
+                        <p className="text-white">{tweet.retweetData.content}</p>
+                      </div>
+                      {tweet.content && (
+                        <p className="mt-2 text-gray-300">{tweet.content}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center mb-2">
+                        <img
+                          src={tweet.user.profilePicture || '/default-avatar.png'}
+                          alt={tweet.user.name}
+                          className="w-10 h-10 rounded-full mr-3"
+                        />
+                        <div>
+                          <p className="font-bold text-white">{tweet.user.name}</p>
+                          <p className="text-gray-500">@{tweet.user.username}</p>
+                        </div>
+                      </div>
+                      <p className="text-white">{tweet.content}</p>
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-6 mt-2 text-gray-500">
+                    <button 
+                      onClick={() => handleLike(tweet._id)}
+                      className="flex items-center space-x-2 hover:text-red-500 transition-colors"
+                    >
+                      <span>❤️</span>
+                      <span>{tweet.likes?.length || 0}</span>
+                    </button>
+                    <button 
+                      onClick={() => handleRetweet(tweet._id)}
+                      className="flex items-center space-x-2 hover:text-green-500 transition-colors"
+                    >
+                      <span>🔁</span>
+                      <span>{tweet.retweets?.length || 0}</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+      {/* Sağ Trend Bölümü */}
+      <div className="w-1/4 fixed right-0 h-screen p-4">
+        <div className="bg-gray-900 rounded-xl p-4">
+          <h2 className="text-xl font-bold mb-4">Gündemler</h2>
+          <div className="space-y-4">
+            <div className="hover:bg-gray-800 p-2 rounded transition duration-200">
+              <p className="text-gray-500 text-sm">Türkiye gündeminde</p>
+              <p className="font-bold">#Hashtag1</p>
+              <p className="text-gray-500 text-sm">45.6B Tweet</p>
+            </div>
+            {/* Diğer trend öğeleri buraya eklenebilir */}
+          </div>
+        </div>
+      </div>
     </div>
-  );
+  )
 }
