@@ -94,9 +94,26 @@ export const api = {
       })
       return response.json()
     },
-    retweet: async (tweetId) => {
+    retweet: async (tweetId, comment = '') => {
       const response = await fetchWithAuth(`/tweets/retweet/${tweetId}`, {
+        method: 'POST',
+        body: JSON.stringify({ quoteContent: comment })
+      })
+      return response.json()
+    },
+    getBookmarks: async () => {
+      const response = await fetchWithAuth('/tweets/bookmarks')
+      return response.json()
+    },
+    bookmark: async (tweetId) => {
+      const response = await fetchWithAuth(`/tweets/bookmark/${tweetId}`, {
         method: 'POST'
+      })
+      return response.json()
+    },
+    removeBookmark: async (tweetId) => {
+      const response = await fetchWithAuth(`/tweets/bookmark/${tweetId}`, {
+        method: 'DELETE'
       })
       return response.json()
     }

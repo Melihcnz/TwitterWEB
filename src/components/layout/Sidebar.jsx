@@ -1,12 +1,28 @@
 'use client'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { BiHomeCircle, BiUser } from 'react-icons/bi'
 import { BsBookmark, BsTwitter } from 'react-icons/bs'
 import { HiOutlineHashtag } from 'react-icons/hi'
+import { api } from '@/utils/api'
 
 const Sidebar = () => {
   const router = useRouter()
+  const [user, setUser] = useState(null)
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const userData = await api.auth.getMe()
+        setUser(userData)
+      } catch (error) {
+        console.error('Kullanıcı bilgileri yüklenirken hata:', error)
+      }
+    }
+    fetchUser()
+  }, [])
+
   const menuItems = [
     {
       title: 'Anasayfa',
@@ -54,15 +70,21 @@ const Sidebar = () => {
           Gönder
         </button>
       </div>
-      <div className="mb-4">
-        <button className="flex items-center space-x-2 hover:bg-gray-900 rounded-full p-4 w-full transition duration-200">
-          <div className="w-10 h-10 rounded-full bg-gray-300"></div>
-          <div className="flex-1 text-left">
-            <div className="font-bold text-white">Kullanıcı Adı</div>
-            <div className="text-gray-500">@kullanici</div>
-          </div>
-        </button>
-      </div>
+      {user && (
+        <div className="mb-4">
+          <button className="flex items-center space-x-2 hover:bg-gray-900 rounded-full p-4 w-full transition duration-200">
+            <img
+              src={user.profilePicture || '/default-avatar.png'}
+              alt={user.name}
+              className="w-10 h-10 rounded-full"
+            />
+            <div className="flex-1 text-left">
+              <div className="font-bold text-white">{user.name}</div>
+              <div className="text-gray-500">@{user.username}</div>
+            </div>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

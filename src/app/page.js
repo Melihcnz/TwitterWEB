@@ -3,23 +3,29 @@ import { useState, useEffect } from 'react'
 import { api } from '@/utils/api'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/Header'
+import { BsBookmark, BsBookmarkFill } from 'react-icons/bs'
 
 export default function Home() {
   const [tweets, setTweets] = useState([])
   const [loading, setLoading] = useState(true)
   const [tweetContent, setTweetContent] = useState('')
   const [sending, setSending] = useState(false)
+  const [retweetModal, setRetweetModal] = useState({ isOpen: false, tweetId: null })
+  const [retweetComment, setRetweetComment] = useState('')
+  const [user, setUser] = useState(null)
 
   useEffect(() => {
-    fetchTweets()
+    fetchUserAndTweets()
   }, [])
 
-  const fetchTweets = async () => {
+  const fetchUserAndTweets = async () => {
     try {
+      const userData = await api.auth.getMe()
+      setUser(userData)
       const response = await api.tweets.getAll()
       setTweets(response.tweets || [])
     } catch (error) {
-      console.error('Tweetler yüklenirken hata:', error)
+      console.error('Veriler yüklenirken hata:', error)
     } finally {
       setLoading(false)
     }
@@ -33,7 +39,7 @@ export default function Home() {
     try {
       await api.tweets.create({ content: tweetContent })
       setTweetContent('')
-      fetchTweets() // Yeni tweet sonrası listeyi güncelle
+      fetchUserAndTweets() // Yeni tweet sonrası listeyi güncelle
     } catch (error) {
       console.error('Tweet gönderilirken hata:', error)
     } finally {
@@ -44,19 +50,47 @@ export default function Home() {
   const handleLike = async (tweetId) => {
     try {
       await api.tweets.like(tweetId)
-      fetchTweets() // Tweet listesini güncelle
+      fetchUserAndTweets() // Tweet listesini güncelle
     } catch (error) {
       console.error('Tweet beğenilirken hata:', error)
     }
   }
 
   const handleRetweet = async (tweetId) => {
+    setRetweetModal({ isOpen: true, tweetId })
+  }
+
+  const handleRetweetSubmit = async () => {
     try {
-      await api.tweets.retweet(tweetId)
-      fetchTweets() // Tweet listesini güncelle
+      await api.tweets.retweet(retweetModal.tweetId, retweetComment)
+      setRetweetModal({ isOpen: false, tweetId: null })
+      setRetweetComment('')
+      fetchUserAndTweets() // Tweet listesini güncelle
     } catch (error) {
       console.error('Tweet retweetlenirken hata:', error)
     }
+  }
+
+  const handleBookmark = async (tweetId) => {
+    try {
+      await api.tweets.bookmark(tweetId)
+      fetchUserAndTweets() // Tweet listesini güncelle
+    } catch (error) {
+      console.error('Tweet kaydedilirken hata:', error)
+    }
+  }
+
+  const handleRemoveBookmark = async (tweetId) => {
+    try {
+      await api.tweets.removeBookmark(tweetId)
+      fetchUserAndTweets() // Tweet listesini güncelle
+    } catch (error) {
+      console.error('Tweet kaydı kaldırılırken hata:', error)
+    }
+  }
+
+  const isBookmarked = (tweet) => {
+    return tweet.bookmarks?.some(bookmark => bookmark === user?._id)
   }
 
   return (
@@ -166,6 +200,17 @@ export default function Home() {
                       <span>🔁</span>
                       <span>{tweet.retweets?.length || 0}</span>
                     </button>
+                    <button 
+                      onClick={() => isBookmarked(tweet) ? handleRemoveBookmark(tweet._id) : handleBookmark(tweet._id)}
+                      className="flex items-center space-x-2 hover:text-blue-500 transition-colors"
+                    >
+                      {isBookmarked(tweet) ? (
+                        <BsBookmarkFill className="w-5 h-5" />
+                      ) : (
+                        <BsBookmark className="w-5 h-5" />
+                      )}
+                      <span>{tweet.bookmarks?.length || 0}</span>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -188,6 +233,40 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Retweet Modal */}
+      {retweetModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 rounded-xl p-4 w-[400px]">
+            <h2 className="text-xl font-bold mb-4">Retweet</h2>
+            <textarea
+              value={retweetComment}
+              onChange={(e) => setRetweetComment(e.target.value)}
+              placeholder="Tweet hakkında yorum ekle (isteğe bağlı)"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-white mb-4"
+              rows={3}
+              maxLength={280}
+            />
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => {
+                  setRetweetModal({ isOpen: false, tweetId: null })
+                  setRetweetComment('')
+                }}
+                className="px-4 py-2 rounded-full border border-gray-500 text-gray-300 hover:bg-gray-800"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleRetweetSubmit}
+                className="px-4 py-2 rounded-full bg-green-600 text-white hover:bg-green-700"
+              >
+                Retweet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
