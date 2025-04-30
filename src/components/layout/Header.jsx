@@ -1,28 +1,102 @@
 'use client'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
+import { HiOutlineSearch, HiArrowLeft } from 'react-icons/hi'
+import { BsStars } from 'react-icons/bs'
+import { api } from '@/utils/api'
 
 const Header = () => {
-  const router = useRouter()
-
+  const pathname = usePathname()
+  const [scrolled, setScrolled] = useState(false)
+  const [user, setUser] = useState(null)
+  
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10)
+    }
+    
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+  
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const userData = await api.auth.getMe()
+        setUser(userData)
+      } catch (error) {
+        console.error('Kullanıcı bilgileri yüklenirken hata:', error)
+      }
+    }
+    fetchUser()
+  }, [])
+  
+  // Sayfa başlığını belirle
+  const getPageTitle = () => {
+    switch (pathname) {
+      case '/':
+        return 'Anasayfa'
+      case '/explore':
+        return 'Keşfet'
+      case '/bookmarks':
+        return 'Yer İşaretleri'
+      case '/profile':
+        return user ? user.name : 'Profil'
+      case '/notifications':
+        return 'Bildirimler'
+      case '/messages':
+        return 'Mesajlar'
+      default:
+        return 'Twitter'
+    }
+  }
+  
+  const showBackButton = pathname !== '/'
+  const showSearchOnHeader = pathname === '/explore'
+  const showTimeline = pathname === '/'
+  
   return (
-    <header className="sticky top-0 bg-black border-b border-gray-700">
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center space-x-4">
-          <Link href="/" className="text-white text-xl font-bold">
-            <svg viewBox="0 0 24 24" className="h-8 w-8 text-white" fill="currentColor">
-              <g>
-                <path d="M23.643 4.937c-.835.37-1.732.62-2.675.733.962-.576 1.7-1.49 2.048-2.578-.9.534-1.897.922-2.958 1.13-.85-.904-2.06-1.47-3.4-1.47-2.572 0-4.658 2.086-4.658 4.66 0 .364.042.718.12 1.06-3.873-.195-7.304-2.05-9.602-4.868-.4.69-.63 1.49-.63 2.342 0 1.616.823 3.043 2.072 3.878-.764-.025-1.482-.234-2.11-.583v.06c0 2.257 1.605 4.14 3.737 4.568-.392.106-.803.162-1.227.162-.3 0-.593-.028-.877-.082.593 1.85 2.313 3.198 4.352 3.234-1.595 1.25-3.604 1.995-5.786 1.995-.376 0-.747-.022-1.112-.065 2.062 1.323 4.51 2.093 7.14 2.093 8.57 0 13.255-7.098 13.255-13.254 0-.2-.005-.402-.014-.602.91-.658 1.7-1.477 2.323-2.41z"></path>
-              </g>
-            </svg>
-          </Link>
+    <header className={`sticky top-0 backdrop-blur-md z-10 transition-all duration-200 ${
+      scrolled ? 'bg-black/80' : 'bg-black/40'
+    }`}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+        <div className="flex items-center space-x-6 flex-1">
+          {/* Geri butonu (profil, detay vb sayfalarda) */}
+          {showBackButton && (
+            <button 
+              onClick={() => window.history.back()}
+              className="rounded-full p-2 hover:bg-gray-800 transition-colors"
+            >
+              <HiArrowLeft className="h-5 w-5 text-white" />
+            </button>
+          )}
+          
+          {/* Sayfa başlığı */}
+          <h1 className="text-xl font-bold text-white">{getPageTitle()}</h1>
         </div>
+        
+        {/* Sağ arama veya özel gösterge */}
         <div className="flex items-center space-x-4">
-          <input
-            type="text"
-            placeholder="Twitter'da Ara"
-            className="bg-gray-900 text-white px-4 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
+          {showSearchOnHeader && (
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <HiOutlineSearch className="h-5 w-5 text-gray-500" />
+              </div>
+              <input
+                type="text"
+                placeholder="Twitter'da Ara"
+                className="w-64 bg-gray-800 text-white pl-10 pr-4 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-black transition-colors"
+              />
+            </div>
+          )}
+          
+          {/* Anasayfadaki algoritma/kronoloji seçici */}
+          {showTimeline && (
+            <button className="p-2 rounded-full hover:bg-gray-800 transition-colors">
+              <BsStars className="h-5 w-5 text-blue-400" />
+            </button>
+          )}
         </div>
       </div>
     </header>

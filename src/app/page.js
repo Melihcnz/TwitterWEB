@@ -1,18 +1,47 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { api } from '@/utils/api'
+import { debounce, checkTweetLimit } from '@/utils/helpers'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/Header'
 import { BsBookmark, BsBookmarkFill } from 'react-icons/bs'
+import TrendsSidebar from '@/components/common/TrendsSidebar'
 
 export default function Home() {
   const [tweets, setTweets] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
   const [tweetContent, setTweetContent] = useState('')
   const [sending, setSending] = useState(false)
   const [retweetModal, setRetweetModal] = useState({ isOpen: false, tweetId: null })
   const [retweetComment, setRetweetComment] = useState('')
   const [user, setUser] = useState(null)
+  const observerRef = useRef(null)
+  const tweetLimit = checkTweetLimit(tweetContent)
+
+  // Infinity scroll için intersection observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadMoreTweets()
+        }
+      },
+      { threshold: 0.5 }
+    )
+
+    if (observerRef.current) {
+      observer.observe(observerRef.current)
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observer.unobserve(observerRef.current)
+      }
+    }
+  }, [hasMore, loadingMore])
 
   useEffect(() => {
     fetchUserAndTweets()
@@ -20,10 +49,10 @@ export default function Home() {
 
   const fetchUserAndTweets = async () => {
     try {
+      setLoading(true)
       const userData = await api.auth.getMe()
       setUser(userData)
-      const response = await api.tweets.getAll()
-      setTweets(response.tweets || [])
+      await loadTweets()
     } catch (error) {
       console.error('Veriler yüklenirken hata:', error)
     } finally {
@@ -31,28 +60,95 @@ export default function Home() {
     }
   }
 
-  const handleTweetSubmit = async (e) => {
-    e.preventDefault()
-    if (!tweetContent.trim()) return
-
-    setSending(true)
+  const loadTweets = async () => {
     try {
-      await api.tweets.create({ content: tweetContent })
-      setTweetContent('')
-      fetchUserAndTweets() // Yeni tweet sonrası listeyi güncelle
+      const response = await api.tweets.getAll({ page: 1, limit: 20 })
+      setTweets(response.tweets || [])
+      setPage(2)
+      setHasMore(response.tweets?.length === 20)
     } catch (error) {
-      console.error('Tweet gönderilirken hata:', error)
-    } finally {
-      setSending(false)
+      console.error('Tweetler yüklenirken hata:', error)
     }
   }
 
+  const loadMoreTweets = async () => {
+    if (loadingMore) return
+
+    try {
+      setLoadingMore(true)
+      const response = await api.tweets.getAll({ page, limit: 20 })
+      const newTweets = response.tweets || []
+
+      if (newTweets.length > 0) {
+        setTweets(prev => [...prev, ...newTweets])
+        setPage(prev => prev + 1)
+      }
+
+      setHasMore(newTweets.length === 20)
+    } catch (error) {
+      console.error('Daha fazla tweet yüklenirken hata:', error)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  // Performans için debounce ile tweet gönderme
+  const debouncedTweetSubmit = useCallback(
+    debounce(async (content) => {
+      try {
+        setSending(true)
+        await api.tweets.create({ content })
+        setTweetContent('')
+        // Yeni tweet'i hemen göster
+        await loadTweets()
+      } catch (error) {
+        console.error('Tweet gönderilirken hata:', error)
+      } finally {
+        setSending(false)
+      }
+    }, 300),
+    []
+  )
+
+  const handleTweetSubmit = (e) => {
+    e.preventDefault()
+    if (!tweetContent.trim() || sending || tweetLimit.isExceeded) return
+    debouncedTweetSubmit(tweetContent)
+  }
+
   const handleLike = async (tweetId) => {
+    // İlgili tweet'i bul
+    const tweetIndex = tweets.findIndex(t => t._id === tweetId)
+    if (tweetIndex === -1) return
+
+    const tweet = tweets[tweetIndex]
+    const isLiked = tweet.likes?.some(like => like._id === user?._id) || false
+    
+    // Optimistic update
+    const updatedTweets = [...tweets]
+    
+    if (isLiked) {
+      // Like'ı kaldır
+      updatedTweets[tweetIndex] = {
+        ...tweet,
+        likes: tweet.likes.filter(like => like._id !== user._id)
+      }
+    } else {
+      // Like ekle
+      updatedTweets[tweetIndex] = {
+        ...tweet,
+        likes: [...(tweet.likes || []), { _id: user._id }]
+      }
+    }
+    
+    setTweets(updatedTweets)
+
     try {
       await api.tweets.like(tweetId)
-      fetchUserAndTweets() // Tweet listesini güncelle
     } catch (error) {
       console.error('Tweet beğenilirken hata:', error)
+      // Hata durumunda eski haline getir
+      setTweets(tweets)
     }
   }
 
@@ -65,7 +161,7 @@ export default function Home() {
       await api.tweets.retweet(retweetModal.tweetId, retweetComment)
       setRetweetModal({ isOpen: false, tweetId: null })
       setRetweetComment('')
-      fetchUserAndTweets() // Tweet listesini güncelle
+      await loadTweets() // Tweet listesini güncelle
     } catch (error) {
       console.error('Tweet retweetlenirken hata:', error)
     }
@@ -99,14 +195,18 @@ export default function Home() {
   const handleRemoveBookmark = async (tweetId) => {
     try {
       await api.tweets.removeBookmark(tweetId)
-      fetchUserAndTweets() // Tweet listesini güncelle
+      await loadTweets() // Tweet listesini güncelle
     } catch (error) {
       console.error('Tweet kaydı kaldırılırken hata:', error)
     }
   }
 
+  const isLiked = (tweet) => {
+    return tweet.likes?.some(like => like._id === user?._id) || false
+  }
+
   const isBookmarked = (tweet) => {
-    return tweet.bookmarks?.some(bookmark => bookmark._id === user?._id)
+    return tweet.bookmarks?.some(bookmark => bookmark._id === user?._id) || false
   }
 
   return (
@@ -128,13 +228,17 @@ export default function Home() {
                 placeholder="Neler oluyor?"
                 className="w-full bg-transparent text-white resize-none focus:outline-none"
                 rows="3"
+                maxLength={280}
               />
-              <div className="flex justify-end mt-2">
+              <div className="flex justify-between items-center mt-2">
+                <span className={`text-sm ${tweetLimit.isExceeded ? 'text-red-500' : 'text-gray-500'}`}>
+                  {tweetLimit.remaining} karakter kaldı
+                </span>
                 <button
                   type="submit"
-                  disabled={sending || !tweetContent.trim()}
+                  disabled={sending || !tweetContent.trim() || tweetLimit.isExceeded}
                   className={`px-4 py-2 rounded-full ${
-                    sending || !tweetContent.trim()
+                    sending || !tweetContent.trim() || tweetLimit.isExceeded
                       ? 'bg-blue-500/50 cursor-not-allowed'
                       : 'bg-blue-500 hover:bg-blue-600'
                   } text-white font-semibold transition-colors`}
@@ -204,9 +308,9 @@ export default function Home() {
                   <div className="flex items-center space-x-6 mt-2 text-gray-500">
                     <button 
                       onClick={() => handleLike(tweet._id)}
-                      className="flex items-center space-x-2 hover:text-red-500 transition-colors"
+                      className={`flex items-center space-x-2 ${isLiked(tweet) ? 'text-red-500' : 'hover:text-red-500'} transition-colors`}
                     >
-                      <span>❤️</span>
+                      <span>{isLiked(tweet) ? '❤️' : '🤍'}</span>
                       <span>{tweet.likes?.length || 0}</span>
                     </button>
                     <button 
@@ -230,25 +334,25 @@ export default function Home() {
                   </div>
                 </div>
               ))}
+              
+              {/* Sonsuz scroll için loading indicator */}
+              {hasMore && (
+                <div 
+                  ref={observerRef} 
+                  className="flex justify-center p-4"
+                >
+                  {loadingMore && (
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
       </main>
 
       {/* Sağ Trend Bölümü */}
-      <div className="w-1/4 fixed right-0 h-screen p-4">
-        <div className="bg-gray-900 rounded-xl p-4">
-          <h2 className="text-xl font-bold mb-4">Gündemler</h2>
-          <div className="space-y-4">
-            <div className="hover:bg-gray-800 p-2 rounded transition duration-200">
-              <p className="text-gray-500 text-sm">Türkiye gündeminde</p>
-              <p className="font-bold">#Hashtag1</p>
-              <p className="text-gray-500 text-sm">45.6B Tweet</p>
-            </div>
-            {/* Diğer trend öğeleri buraya eklenebilir */}
-          </div>
-        </div>
-      </div>
+      <TrendsSidebar />
 
       {/* Retweet Modal */}
       {retweetModal.isOpen && (

@@ -4,6 +4,7 @@ import { api } from '@/utils/api'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/Header'
 import { BsBookmark, BsBookmarkFill } from 'react-icons/bs'
+import TrendsSidebar from '@/components/common/TrendsSidebar'
 
 export default function ProfilePage() {
   const [user, setUser] = useState(null)
@@ -176,18 +177,7 @@ export default function ProfilePage() {
         </main>
 
         {/* Sağ Trend Bölümü */}
-        <div className="w-1/4 fixed right-0 h-screen p-4">
-          <div className="bg-gray-900 rounded-xl p-4">
-            <h2 className="text-xl font-bold mb-4">Gündemler</h2>
-            <div className="space-y-4">
-              <div className="hover:bg-gray-800 p-2 rounded transition duration-200">
-                <p className="text-gray-500 text-sm">Türkiye gündeminde</p>
-                <p className="font-bold">#Hashtag1</p>
-                <p className="text-gray-500 text-sm">45.6B Tweet</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <TrendsSidebar />
       </div>
     )
   }
@@ -394,18 +384,7 @@ export default function ProfilePage() {
       </main>
 
       {/* Sağ Trend Bölümü */}
-      <div className="w-1/4 fixed right-0 h-screen p-4">
-        <div className="bg-gray-900 rounded-xl p-4">
-          <h2 className="text-xl font-bold mb-4">Gündemler</h2>
-          <div className="space-y-4">
-            <div className="hover:bg-gray-800 p-2 rounded transition duration-200">
-              <p className="text-gray-500 text-sm">Türkiye gündeminde</p>
-              <p className="font-bold">#Hashtag1</p>
-              <p className="text-gray-500 text-sm">45.6B Tweet</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <TrendsSidebar />
 
       {/* Retweet Modal */}
       {retweetModal.isOpen && (
